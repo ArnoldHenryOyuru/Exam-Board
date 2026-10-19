@@ -97,11 +97,14 @@ tr.today td{background:var(--bg)}
  <h2 style="margin:0 0 10px;font-size:20px">This week</h2><div class="tw"><table id="plan"></table></div>
  <p class="note">Each block: about 2 hours of learning or problems, 40 minutes of recall without notes, and short breaks. Lunch is 13:15 to 14:15.</p>
 </section>
-<div class="foot"><button class="ghost" id="reset">Reset board</button><span>Progress is saved in this browser only.</span></div>
+<div class="foot"><button class="ghost" id="reset">Reset board</button><span id="syncmsg">Progress is saved in this browser only.</span><details id="acct" hidden><summary>Sync across devices</summary><div class="addrow"><input id="em" type="email" placeholder="Email" autocomplete="email" aria-label="Email"><input id="pw" type="password" placeholder="Password" autocomplete="current-password" aria-label="Password"><button class="go" id="si" style="flex:none">Sign in</button></div></details><button class="ghost" id="so" hidden style="flex:none">Sign out</button></div>
 </div>
 <nav class="seg" id="seg" aria-label="Stage"></nav>
 <div class="toast" id="toast" hidden role="status"><span>Topic removed</span><button id="undo">Undo</button></div>
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.45.4/dist/umd/supabase.js"></script>
 <script>
+// Paste your Supabase project URL and anon (publishable) key here to turn on sync.
+const SUPABASE_URL="https://rvvrrpnsrhxonmhfkayp.supabase.co",SUPABASE_KEY="eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InJ2dnJycG5zcmh4b25taGZrYXlwIiwicm9sZSI6ImFub24iLCJpYXQiOjE3OTIzNzA1OTUsImV4cCI6MjEwNzk0NjU5NX0.0df2Hy8x_oEp7FcHbSmqES-0tBw1O3Q74TXRY9uUrLs";
 const C={dm:"Maths",ai:"AI",db:"DBMS",nw:"Networks",es:"Embedded"};
 const T={
 dm:["Introduction","Propositional logic","First-order logic","Methods of proof","Functions","Sets, sequences and summations","Relations","Induction"],
@@ -121,7 +124,7 @@ let S=load(),last=null,tt=null;
 function defCourse(){const d=new Date(),r=PLAN[(d.getDay()+6)%7],m=d.getHours()*60+d.getMinutes();let j=BL.findIndex(b=>m<b[2]);if(j<0)j=0;for(let k=j;k<4;k++)if(r[k+1]!=="test")return r[k+1];return "dm"}
 S.filter=defCourse();
 $("allstrip").addEventListener("click",()=>{S.filter="all";save();render()});
-function save(){try{localStorage.setItem("revboard2",JSON.stringify(S))}catch(e){}}
+function save(){S.updatedAt=Date.now();try{localStorage.setItem("revboard2",JSON.stringify(S))}catch(e){}push()}
 const seg4=(n)=>[3,2,1,0].map(i=>'<i style="width:'+(n.total?n[i]/n.total*100:0)+'%;background:var(--s'+i+')"></i>').join("");
 function cnt(list){const n={0:0,1:0,2:0,3:0,total:list.length};list.forEach(c=>n[c.col]++);return n}
 function render(){
@@ -169,5 +172,34 @@ function plan(){
 }
 function tab(w){$("v-board").hidden=w!=="board";$("v-plan").hidden=w!=="plan";$("seg").style.visibility=w==="board"?"visible":"hidden";$("t-board").setAttribute("aria-selected",w==="board");$("t-plan").setAttribute("aria-selected",w==="plan")}
 $("t-board").addEventListener("click",()=>tab("board"));$("t-plan").addEventListener("click",()=>tab("plan"));
+const SB=(typeof supabase!=="undefined"&&SUPABASE_URL&&!SUPABASE_URL.includes("YOUR-")&&SUPABASE_KEY&&!SUPABASE_KEY.includes("YOUR-"))?supabase.createClient(SUPABASE_URL,SUPABASE_KEY):null;
+let uid=null,pt=null;
+function msg(t){$("syncmsg").textContent=t}
+function push(){if(!SB||!uid)return;clearTimeout(pt);msg("Syncing…");pt=setTimeout(async()=>{if(!S.updatedAt)S.updatedAt=Date.now();const{error}=await SB.from("board_state").upsert({user_id:uid,state:S,updated_at:new Date().toISOString()});msg(error?"Sync failed. Saved on this device.":"Synced")},800)}
+async function pull(){
+  if(!SB||!uid)return;
+  const{data,error}=await SB.from("board_state").select("state").eq("user_id",uid).maybeSingle();
+  if(error){msg("Sync failed. Saved on this device.");return}
+  const cloud=data&&data.state&&Array.isArray(data.state.cards)?data.state:null;
+  if(cloud&&(cloud.updatedAt||0)>(S.updatedAt||0)){
+    S=Object.assign({},cloud,{filter:S.filter,stage:S.stage});
+    try{localStorage.setItem("revboard2",JSON.stringify(S))}catch(e){}
+    render();msg("Synced");
+  }else if(!cloud||(S.updatedAt||0)>(cloud.updatedAt||0)){push()}
+  else msg("Synced");
+}
+function authUi(session){
+  uid=session?session.user.id:null;
+  $("acct").hidden=!SB||!!session;$("so").hidden=!session;
+  if(SB)msg(session?"Synced":"Saved on this device. Sign in to sync.");
+}
+if(SB){
+  SB.auth.getSession().then(({data})=>{authUi(data.session);pull()});
+  SB.auth.onAuthStateChange((_e,s)=>{authUi(s);pull()});
+  $("si").addEventListener("click",async()=>{const{error}=await SB.auth.signInWithPassword({email:$("em").value.trim(),password:$("pw").value});if(error)msg("Sign-in failed: "+error.message)});
+  $("pw").addEventListener("keydown",e=>{if(e.key==="Enter")$("si").click()});
+  $("so").addEventListener("click",()=>SB.auth.signOut());
+  document.addEventListener("visibilitychange",()=>{if(!document.hidden)pull()});
+}
 render();plan();
 </script></body></html>
