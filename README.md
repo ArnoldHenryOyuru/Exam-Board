@@ -14,3 +14,4 @@ Open `index.html` in a browser.
 ## Deploy
 
 Import the repository on Vercel with the "Other" framework preset and no build command.
+
