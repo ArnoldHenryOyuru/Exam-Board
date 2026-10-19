@@ -77,6 +77,11 @@ th{color:var(--mute);font-weight:600}
 tr.today td{background:var(--bg)}
 .note{color:var(--mute);font-size:14px;max-width:64ch;margin:12px auto 0;text-align:center}
 .foot{margin-top:24px;display:flex;justify-content:center;text-align:center;gap:10px;align-items:center;flex-wrap:wrap;color:var(--mute);font-size:14px}
+.syncbox{flex:1 1 100%;display:flex;flex-direction:column;align-items:center;gap:10px;text-align:center}
+.syncbox details{width:min(560px,100%)}
+.syncbox summary{justify-content:center}
+.syncbox .addrow{justify-content:center}
+#so{min-width:140px}
 .toast{position:fixed;left:50%;transform:translateX(-50%);bottom:calc(80px + env(safe-area-inset-bottom,0px));background:var(--ink);color:var(--bg);border-radius:10px;padding:4px 6px 4px 14px;display:flex;align-items:center;gap:10px;z-index:9}
 .toast button{background:none;border:0;color:var(--bg);text-decoration:underline;font-weight:600}
 [hidden]{display:none!important}
@@ -97,7 +102,7 @@ tr.today td{background:var(--bg)}
  <h2 style="margin:0 0 10px;font-size:20px">This week</h2><div class="tw"><table id="plan"></table></div>
  <p class="note">Each block: about 2 hours of learning or problems, 40 minutes of recall without notes, and short breaks. Lunch is 13:15 to 14:15.</p>
 </section>
-<div class="foot"><button class="ghost" id="reset">Reset board</button><span id="syncmsg">Progress is saved in this browser only.</span><details id="acct" hidden><summary>Sync across devices</summary><div class="addrow"><input id="em" type="email" placeholder="Email" autocomplete="email" aria-label="Email"><input id="pw" type="password" placeholder="Password" autocomplete="current-password" aria-label="Password"><button class="go" id="si" style="flex:none">Sign in</button></div></details><button class="ghost" id="so" hidden style="flex:none">Sign out</button></div>
+<div class="foot"><button class="ghost" id="reset">Reset board</button><div class="syncbox"><span id="syncmsg">Progress is saved in this browser only.</span><details id="acct" hidden><summary>Sync across devices</summary><div class="addrow"><input id="em" type="email" placeholder="Email" autocomplete="email" aria-label="Email"><input id="pw" type="password" placeholder="Password" autocomplete="current-password" aria-label="Password"><button class="go" id="si" style="flex:none">Sign in</button></div></details><button class="ghost" id="so" hidden style="flex:none">Sign out</button></div></div>
 </div>
 <nav class="seg" id="seg" aria-label="Stage"></nav>
 <div class="toast" id="toast" hidden role="status"><span>Topic removed</span><button id="undo">Undo</button></div>
@@ -174,7 +179,13 @@ function tab(w){$("v-board").hidden=w!=="board";$("v-plan").hidden=w!=="plan";$(
 $("t-board").addEventListener("click",()=>tab("board"));$("t-plan").addEventListener("click",()=>tab("plan"));
 const SB=(typeof supabase!=="undefined"&&SUPABASE_URL&&!SUPABASE_URL.includes("YOUR-")&&SUPABASE_KEY&&!SUPABASE_KEY.includes("YOUR-"))?supabase.createClient(SUPABASE_URL,SUPABASE_KEY):null;
 let uid=null,pt=null;
-function msg(t){$("syncmsg").textContent=t}
+function msg(t){
+  const so=$("so"),sm=$("syncmsg");
+  if(uid){
+    so.textContent=t==="Syncing…"?"Syncing…":"Sign out";
+    if(t==="Syncing…"||t==="Synced"){sm.hidden=true}else{sm.textContent=t;sm.hidden=false}
+  }else{sm.textContent=t;sm.hidden=false;so.textContent="Sign out"}
+}
 function push(){if(!SB||!uid)return;clearTimeout(pt);msg("Syncing…");pt=setTimeout(async()=>{if(!S.updatedAt)S.updatedAt=Date.now();const{error}=await SB.from("board_state").upsert({user_id:uid,state:S,updated_at:new Date().toISOString()});msg(error?"Sync failed. Saved on this device.":"Synced")},800)}
 async function pull(){
   if(!SB||!uid)return;
