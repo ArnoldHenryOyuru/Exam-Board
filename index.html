@@ -21,8 +21,15 @@ h1{font-size:clamp(36px,8vw,64px);line-height:1.05;letter-spacing:-.03em;font-we
 .tabs{display:flex;justify-content:center;gap:6px;margin-bottom:20px}
 .tab{background:none;border:0;border-radius:980px;padding:0 18px;font-weight:600;color:var(--mute)}
 .tab[aria-selected="true"]{background:var(--ink);color:var(--bg)}
-.total{display:flex;align-items:baseline;gap:10px;margin-bottom:10px}
-.total b{font-size:30px;font-weight:800;letter-spacing:-.02em}
+.hero{display:flex;flex-direction:column;align-items:center;gap:8px;margin-bottom:22px;text-align:center}
+.ring{width:140px;height:140px}
+.rt,.rp{fill:none;stroke-width:10}
+.rt{stroke:var(--s0)}
+.rp{stroke:var(--acc);stroke-linecap:round;stroke-dasharray:326.7;stroke-dashoffset:326.7;transform:rotate(-90deg);transform-origin:60px 60px;transition:stroke-dashoffset .5s}
+.rn{font-size:26px;font-weight:600;fill:var(--ink);letter-spacing:-.02em}
+.hero .strip{width:min(640px,100%)}
+@media (prefers-reduced-motion:reduce){.rp{transition:none}}
+.strips{margin-top:4px}
 .stack{display:flex;height:12px;border-radius:6px;overflow:hidden;background:var(--s0);flex:1}
 .stack i{display:block;height:100%}
 .strips{display:grid;gap:4px;margin-bottom:22px}
@@ -79,7 +86,7 @@ tr.today td{background:var(--bg)}
 <p class="sub">A topic is exam-ready only when you have answered a question on it correctly, without notes, under time.</p>
 <div class="tabs" role="tablist"><button class="tab" role="tab" id="t-board" aria-selected="true">Board</button><button class="tab" role="tab" id="t-plan" aria-selected="false">Today and week</button></div>
 <section id="v-board">
- <div class="total"><b id="ovn"></b><span id="ovt"></span><div class="stack" id="ovbar" aria-hidden="true"></div></div>
+ <div class="hero"><svg class="ring" viewBox="0 0 120 120" role="img" aria-label="Topics exam-ready"><circle class="rt" cx="60" cy="60" r="52"/><circle class="rp" id="rp" cx="60" cy="60" r="52"/><text class="rn" id="ovn" x="60" y="69" text-anchor="middle"></text></svg><span id="ovt"></span><button class="strip" id="allstrip" data-f="all" aria-pressed="false"><b>All courses</b><div class="stack" id="ovbar" aria-hidden="true"></div><small id="ovc"></small></button></div>
  <div class="strips" id="strips"></div>
  <details class="add"><summary>Add a topic</summary><div class="addrow"><select id="addc" aria-label="Course"></select><input id="addt" type="text" placeholder="Topic name" aria-label="Topic name"><button class="go" id="addb" style="flex:none">Add topic</button></div></details>
  <div class="board" id="board"></div>
@@ -95,7 +102,7 @@ tr.today td{background:var(--bg)}
 <nav class="seg" id="seg" aria-label="Stage"></nav>
 <div class="toast" id="toast" hidden role="status"><span>Topic removed</span><button id="undo">Undo</button></div>
 <script>
-const C={dm:"Discrete Math",ai:"AI",db:"DBMS",nw:"Networks",es:"Embedded"};
+const C={dm:"Maths",ai:"AI",db:"DBMS",nw:"Networks",es:"Embedded"};
 const T={
 dm:["Introduction","Propositional logic","First-order logic","Methods of proof","Functions","Sets, sequences and summations","Relations","Induction"],
 ai:["Introduction, history of AI and responsibility","Machine learning","Search (Chapter 3)","Markov decision processes (Chapter 17)","Adversarial games (Chapter 5)","Constraint satisfaction problems (Chapter 6)","Markov networks and Bayesian networks (Chapters 12 and 13)"],
@@ -111,13 +118,16 @@ const hm=m=>String(Math.floor(m/60)).padStart(2,"0")+":"+String(m%60).padStart(2
 function seed(){let id=0,cards=[];for(const k in T)T[k].forEach(t=>cards.push({id:++id,c:k,t,col:0}));return{cards,next:id+1,filter:"all",stage:0}}
 function load(){try{const r=localStorage.getItem("revboard2");if(r){const s=JSON.parse(r);if(s&&Array.isArray(s.cards))return Object.assign({stage:0,filter:"all"},s)}}catch(e){}return seed()}
 let S=load(),last=null,tt=null;
+function defCourse(){const d=new Date(),r=PLAN[(d.getDay()+6)%7],m=d.getHours()*60+d.getMinutes();let j=BL.findIndex(b=>m<b[2]);if(j<0)j=0;for(let k=j;k<4;k++)if(r[k+1]!=="test")return r[k+1];return "dm"}
+S.filter=defCourse();
+$("allstrip").addEventListener("click",()=>{S.filter="all";save();render()});
 function save(){try{localStorage.setItem("revboard2",JSON.stringify(S))}catch(e){}}
-const seg4=(n)=>[0,1,2,3].map(i=>'<i style="width:'+(n.total?n[i]/n.total*100:0)+'%;background:var(--s'+i+')"></i>').join("");
+const seg4=(n)=>[3,2,1,0].map(i=>'<i style="width:'+(n.total?n[i]/n.total*100:0)+'%;background:var(--s'+i+')"></i>').join("");
 function cnt(list){const n={0:0,1:0,2:0,3:0,total:list.length};list.forEach(c=>n[c.col]++);return n}
 function render(){
   const all=cnt(S.cards);
-  $("ovn").textContent=all[3];$("ovt").textContent="of "+all.total+" topics exam-ready";$("ovbar").innerHTML=seg4(all);
-  let s='<button class="strip" data-f="all" aria-pressed="'+(S.filter==="all")+'"><b>All courses</b><div class="stack" aria-hidden="true">'+seg4(all)+'</div><small>'+all[3]+"/"+all.total+"</small></button>";
+  $("ovn").textContent=all[3]+"/"+all.total;$("ovt").textContent="topics exam-ready";$("rp").style.strokeDashoffset=326.7*(1-(all.total?all[3]/all.total:0));$("ovbar").innerHTML=seg4(all);
+  let s="";$("allstrip").setAttribute("aria-pressed",S.filter==="all");$("ovc").textContent=all[3]+"/"+all.total;
   for(const k in C){const n=cnt(S.cards.filter(c=>c.c===k));s+='<button class="strip" data-f="'+k+'" aria-pressed="'+(S.filter===k)+'"><span>'+C[k]+'</span><div class="stack" aria-hidden="true">'+seg4(n)+'</div><small>'+n[3]+"/"+n.total+"</small></button>"}
   $("strips").innerHTML=s;
   let b="",g="";
